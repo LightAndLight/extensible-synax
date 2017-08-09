@@ -1,4 +1,5 @@
 # Programmable Syntax
+
 What if a programming language's parser was metaprogrammable?
 
 Consider a lambda-calculus based language with quasi-quotation, strings, ints, and generalized algebraic
@@ -12,7 +13,7 @@ data AST
   = Var String
   | Abs String AST
   | App AST AST
-  | DataCon String
+  | Ctor String
   | LitString String
   | LitInt Int
   | Quote AST
@@ -30,7 +31,7 @@ data AST
   = Var String
   | Abs String AST
   | App AST AST
-  | DataCon String
+  | Ctor String
   | LitString String
   | LitInt Int
   | Quote AST
@@ -42,13 +43,13 @@ data AST
 reifyAST :: AST -> AST
 reifyAST ast =
   case ast of
-    App (DataCon "Var") (LitString a) -> Var a
-    App (App (DataCon "Abs") (LitString a)) b -> Abs a (reifyAST b)
-    App (App (DataCon "App") a) b -> App (reifyAST a) (reifyAST b)
-    App (DataCon "DataCon") (LitString a) -> DataCon a
-    App (DataCon "LitString") (LitString a) -> LitString a
-    App (DataCon "LitInt") (LitInt a) -> LitInt a
-    App (DataCon "Quote") a -> a
+    App (Ctor "Var") (LitString a) -> Var a
+    App (App (Ctor "Abs") (LitString a)) b -> Abs a (reifyAST b)
+    App (App (Ctor "App") a) b -> App (reifyAST a) (reifyAST b)
+    App (Ctor "Ctor") (LitString a) -> Ctor a
+    App (Ctor "LitString") (LitString a) -> LitString a
+    App (Ctor "LitInt") (LitInt a) -> LitInt a
+    App (Ctor "Quote") a -> a
     _ -> error "internal error: invalid argument to reifyAST: " ++ show ast
 ```
 
@@ -97,7 +98,7 @@ We could limit syntax extension to terms to remove ambiguity. This seems unduly 
 and it might be better to unify type and term level languages with dependent types. Assuming
 dependent types, the example becomes:
 
-```
+```idris
 -- Example.ex
 
 data Unit = MkUnit
@@ -121,9 +122,36 @@ which is why the argument to `%syntax` must produce an `AST`:
 reifySyntax :: AST -> Parser AST
 reifySyntax ast =
   case ast of
-    App (DataCon "Pure") a -> pure (reifyAST a)
-    App (App (DataCon "Bind") a) f -> reifySyntax a >>= reifySyntax . eval . App f . Quote
-    App (App (DataCon "Discard") a) b -> reifySyntax a >> reifySyntax b
-    App (DataCon "Satisfy") pred -> satisfy ((== DataCon "True") . eval . App pred . LitChar)
-    App (DataCon "String") (LitString str) -> string str
+    App (Ctor "Pure") a -> pure (reifyAST a)
+    App (App (Ctor "Bind") a) f -> reifySyntax a >>= reifySyntax . eval . App f . Quote
+    App (App (Ctor "Discard") a) b -> reifySyntax a >> reifySyntax b
+    App (Ctor "Satisfy") pred -> satisfy ((== Ctor "True") . eval . App pred . LitChar)
+    App (Ctor "String") (LitString str) -> string str
+```
+
+This presentation allows arbitrary code to be executed during the parse phase, so efforts must
+be made to check the totality of the involved code. Since this will likely be in a dependently
+typed language, this will likely be implemented anyway.
+
+The parsing and typechecking phases are now coupled. During parsing, definitions should be typechecked
+and added to the context immediately, because they could be required to form the next syntax extension.
+
+One important question is "What is the minimum number of builtin syntax required to accomplish all this?"
+
+Let's explore:
+
+```haskell
+--- Compiler.hs
+
+syntaxRule
+  :: ( MonadState [Parser AST] m
+     , MonadParser m
+     , MonadTypecheck m
+     )
+  => m ()
+syntaxRule = do
+  token "%syntax"
+  ast <- gets choice
+  ast `hasType` App (Ctor "Syntax") (Ctor "AST")
+  modify (reifySyntax ast :)
 ```
