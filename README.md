@@ -122,7 +122,7 @@ reifySyntax :: AST -> Parser AST
 reifySyntax ast =
   case ast of
     App (DataCon "Pure") a -> pure (reifyAST a)
-    App (App (DataCon "Bind) a) f -> reifySyntax a >>= reifySyntax . eval . App f . Quote
+    App (App (DataCon "Bind") a) f -> reifySyntax a >>= reifySyntax . eval . App f . Quote
     App (App (DataCon "Discard") a) b -> reifySyntax a >> reifySyntax b
     App (DataCon "Satisfy") pred -> satisfy ((== DataCon "True") . eval . App pred . LitChar)
     App (DataCon "String") (LitString str) -> string str
