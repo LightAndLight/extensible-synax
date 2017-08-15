@@ -223,6 +223,10 @@ uses parser combinators.
 
 Cyclicity is not a concern, since grammars can be simultaneously recursive and unambiguous i.e.
 `term ::= left right; left ::= 'value'; right ::= '+' term right | epsilon`. Apparently determining
-the ambiguity of a context free grammar is undecidable. Apparently `ll(k)` grammars are unambiguous, so
-maybe the burden can be shifted to deciding if the grammar is in that class. It is also worth considering
-restricting the parser combinators to permit only `ll(k)` grammars. This may require its own library.
+the ambiguity of a context free grammar is undecidable. Apparently `ll(k)` and `lr(k)` grammars are unambiguous,
+so maybe the burden can be shifted to deciding if the grammar is in that class. It is also worth considering
+restricting the parser combinators to permit only this class of grammars. This may require its own library. The
+best way to do this would be to build the parse table and detect any conflicts, and if there are no conflicts
+then build a parser specification in terms of `parsers` typeclasses. Parser combinators work best with `ll`
+grammars, but there is an isomorphism between `ll` and `lr` grammars, so in theory we could validate that
+a given grammar is `lr`, then translate it to parser combinators anyway.
